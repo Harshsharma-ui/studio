@@ -1,76 +1,71 @@
 
 import 'server-only';
-import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 
 // This declaration is to extend the NodeJS.Global interface
 declare global {
-  var memberQRCodes: Map<string, string>; // Maps memberId to qrCode
-  var validQRCodes: Map<string, string>;  // Maps qrCode to memberId
   var checkedInMembers: Set<string>; // Stores memberIds of checked-in users
 }
 
-let memberQRCodes: Map<string, string>;
-let validQRCodes: Map<string, string>;
 let checkedInMembers: Set<string>;
 
 
-function initializeQRCodes() {
-  if (global.validQRCodes && global.memberQRCodes && global.checkedInMembers) {
-    validQRCodes = global.validQRCodes;
-    memberQRCodes = global.memberQRCodes;
+function initializeStore() {
+  if (global.checkedInMembers) {
     checkedInMembers = global.checkedInMembers;
   } else {
-    console.log('Initializing QR code store...');
-    validQRCodes = new Map();
-    memberQRCodes = new Map();
+    console.log('Initializing check-in store...');
     checkedInMembers = new Set();
-    global.validQRCodes = validQRCodes;
-    global.memberQRCodes = memberQRCodes;
     global.checkedInMembers = checkedInMembers;
-    console.log('QR code store initialized.');
+    console.log('Check-in store initialized.');
   }
 }
 
-initializeQRCodes();
+initializeStore();
+
+function generateDeterministicQRCode(memberId: string): string {
+    // Create a SHA-256 hash of the memberId to generate a unique, deterministic QR code.
+    const hash = createHash('sha256');
+    hash.update(memberId);
+    return hash.digest('hex');
+}
+
+function getMemberIdFromCode(code: string, memberIds: string[]): string | null {
+    // In a real-world scenario, you'd have a reverse lookup.
+    // Here we find the memberId that generates the given code.
+    return memberIds.find(id => generateDeterministicQRCode(id) === code) || null;
+}
 
 export async function resetAllData(): Promise<{ success: boolean; message: string }> {
-    console.log('Resetting all QR code data...');
-    validQRCodes.clear();
-    memberQRCodes.clear();
+    console.log('Resetting all check-in data...');
     checkedInMembers.clear();
-    console.log('All data has been reset.');
-    return { success: true, message: 'All QR codes and check-in data have been reset.' };
+    console.log('All check-in data has been reset.');
+    return { success: true, message: 'All check-in data have been reset.' };
 }
 
 export async function generateMemberQRCode(memberId: string): Promise<string> {
-  // If user already has a code, return it to ensure persistence.
-  if (memberQRCodes.has(memberId)) {
-    return memberQRCodes.get(memberId)!;
-  }
-  
-  const newCode = randomUUID();
-  memberQRCodes.set(memberId, newCode);
-  validQRCodes.set(newCode, memberId);
-  checkedInMembers.delete(memberId); // Ensure member is not checked-in if a new code is somehow generated
-  
-  console.log(`Generated QR code for ${memberId}. Total valid codes: ${validQRCodes.size}`);
-  return newCode;
+    const code = generateDeterministicQRCode(memberId);
+    console.log(`Generated permanent QR code for ${memberId}.`);
+    return code;
 }
 
 export async function verifyAndInvalidateQRCode(code: string): Promise<{ success: boolean; message: string }> {
-  if (validQRCodes.has(code)) {
-    const memberId = validQRCodes.get(code)!;
-    
+  // To validate, we need to know the possible memberIds. We'll generate them on the fly.
+  const maxMembers = 5000;
+  const allMemberIds = Array.from({ length: maxMembers }, (_, i) => `member-${i + 1}`);
+  
+  const memberId = getMemberIdFromCode(code, allMemberIds);
+
+  if (memberId) {
     if (checkedInMembers.has(memberId)) {
-        return { success: false, message: `Member ${memberId} has already been checked in.` };
+      return { success: false, message: `Member ${memberId} has already been checked in.` };
     }
 
-    // A code is single-use. We don't delete from validQRCodes, but we do add to checkedInMembers
     checkedInMembers.add(memberId);
     
     return { success: true, message: `Check-in for ${memberId} successful. Welcome!` };
   }
-  return { success: false, message: 'Invalid or already used QR code. Please try another.' };
+  return { success: false, message: 'Invalid QR code. Please try another.' };
 }
 
 export async function checkInMemberById(memberId: string): Promise<{ success: boolean; message: string }> {
@@ -97,7 +92,3 @@ export async function getPreGeneratedCodes(memberIds: string[]): Promise<Array<{
     }));
     return codes;
 }
-
-// Clear checkedInMembers at startup if desired for a clean event start, but not QR codes.
-// For this case, we want checked in members to persist across reloads for the demo.
-// To clear checked-in members for a new event, use the "Reset All Data" button in the Admin panel.
