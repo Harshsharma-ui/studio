@@ -69,7 +69,7 @@ export function QrScanner() {
           inversionAttempts: 'dontInvert',
         });
 
-        if (code && code.data && !isPending) {
+        if (code && code.data && !isPending && status === 'idle') {
           handleScan(code.data);
         }
       }
@@ -78,17 +78,22 @@ export function QrScanner() {
   };
   
   useEffect(() => {
-    if (hasCameraPermission) {
-        const animationFrame = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(animationFrame);
+    let animationFrameId: number;
+    if (hasCameraPermission && status === 'idle') {
+        const tickWrapper = () => {
+            tick();
+            animationFrameId = requestAnimationFrame(tickWrapper);
+        }
+        animationFrameId = requestAnimationFrame(tickWrapper);
     }
+    return () => cancelAnimationFrame(animationFrameId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasCameraPermission, isPending]);
+  }, [hasCameraPermission, isPending, status]);
 
   const handleScan = (qrCode: string) => {
     if (isPending) return;
     setStatus('scanning');
-    setMessage(`Scanning code...`);
+    setMessage(`Verifying code...`);
     
     startTransition(async () => {
       const result = await verifyQRCodeAction(qrCode);
@@ -99,7 +104,6 @@ export function QrScanner() {
       }
       setMessage(result.message);
       
-      // Reset status after a few seconds to allow for new scans
       setTimeout(() => {
           if (status !== 'no-camera') {
             setStatus('idle');
@@ -110,9 +114,9 @@ export function QrScanner() {
   };
 
   const statusIcons: Record<Exclude<ScanStatus, 'scanning'>, React.ReactNode> = {
-    idle: <QrCode className="h-16 w-16 text-muted-foreground" />,
-    success: <CheckCircle className="h-16 w-16 text-green-500" />,
-    error: <XCircle className="h-16 w-16 text-destructive" />,
+    idle: <QrCode className="h-16 w-16 text-white/80" />,
+    success: <CheckCircle className="h-24 w-24 text-white" />,
+    error: <XCircle className="h-24 w-24 text-white" />,
     'no-camera': <CameraOff className="h-16 w-16 text-muted-foreground" />,
   };
 
@@ -124,35 +128,37 @@ export function QrScanner() {
             Live QR Code Scanner
         </CardTitle>
         <CardDescription className="text-center">
-          Point your camera at a QR code to check-in an attendee.
+          Point your camera at a member's QR code to check them in.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6">
         <div
           className={cn(
-            'relative flex h-64 w-full items-center justify-center rounded-lg bg-secondary transition-all duration-300 overflow-hidden',
-             status === 'success' && 'ring-4 ring-green-500',
-             status === 'error' && 'ring-4 ring-destructive',
+            'relative flex h-64 w-full items-center justify-center rounded-lg bg-secondary overflow-hidden border-4 border-transparent',
           )}
         >
-            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+            <video ref={videoRef} className="w-full h-full object-cover scale-105" autoPlay muted playsInline />
             <canvas ref={canvasRef} className="hidden" />
 
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                {isPending ? <Loader className="h-16 w-16 animate-spin text-primary" /> : statusIcons[status === 'scanning' ? 'idle' : status]}
+            <div className={cn(
+              "absolute inset-0 flex items-center justify-center bg-black/50 transition-all duration-300",
+              status === 'success' && 'bg-green-500/80',
+              status === 'error' && 'bg-red-500/80',
+            )}>
+                {isPending ? <Loader className="h-16 w-16 animate-spin text-primary-foreground" /> : statusIcons[status === 'scanning' ? 'idle' : status]}
             </div>
 
             {/* Scanning overlay */}
             {!isPending && status === 'idle' && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-3/4 h-3/4 border-4 border-dashed border-white/50 rounded-lg"/>
+                    <div className="w-3/4 h-3/4 border-4 border-dashed border-white/50 rounded-lg animate-pulse"/>
                 </div>
             )}
         </div>
 
-        {message && (
-          <Alert variant={status === 'success' ? 'default' : 'destructive'} className={cn('text-center', status === 'success' && 'border-green-500/50')}>
-             {status === 'success' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+        {(message && (status === 'success' || status === 'error')) && (
+          <Alert variant={status === 'success' ? 'default' : 'destructive'} className={cn('text-center', status === 'success' && 'border-green-500/50 bg-green-50 dark:bg-green-900/10')}>
+             {status === 'success' ? <CheckCircle className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4" />}
             <AlertTitle className="font-semibold">
               {status === 'success' ? 'Success' : 'Validation Failed'}
             </AlertTitle>
@@ -160,16 +166,13 @@ export function QrScanner() {
           </Alert>
         )}
         
-        {hasCameraPermission === false && (
+        {status === 'no-camera' && (
              <Alert variant="destructive">
                 <CameraOff className="h-4 w-4" />
-                <AlertTitle>No Camera Access</AlertTitle>
-                <AlertDescription>
-                    Please grant camera permissions in your browser to use the scanner.
-                </AlertDescription>
+                <AlertTitle>Camera Not Available</AlertTitle>
+                <AlertDescription>{message}</AlertDescription>
             </Alert>
         )}
-
       </CardContent>
     </Card>
   );

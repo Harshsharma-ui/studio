@@ -5,7 +5,7 @@ import {
   PersonalizedEventSuggestionsInput,
   personalizedEventSuggestions,
 } from '@/ai/flows/personalized-event-suggestions';
-import { verifyAndInvalidateQRCode, generateMemberQRCode } from '@/lib/qr-store';
+import { verifyAndInvalidateQRCode, generateMemberQRCode, getCheckedInMembers } from '@/lib/qr-store';
 
 const qrCodeSchema = z.string().min(1, 'QR Code cannot be empty');
 const memberIdSchema = z.string().min(1, 'Member ID cannot be empty');
@@ -29,6 +29,10 @@ export async function generateMemberCodeAction(memberId: string) {
   }
 }
 
+export async function getCheckedInMembersAction() {
+    return await getCheckedInMembers();
+}
+
 const aiSuggestionSchema = z.object({
   userPreferences: z.string().min(20, 'Please describe your preferences in more detail.').max(1000),
   pastAttendance: z.string().min(20, 'Please describe past events in more detail.').max(1000),
@@ -46,6 +50,6 @@ export async function getAiSuggestionAction(data: PersonalizedEventSuggestionsIn
     return { success: true, data: result };
   } catch (error) {
     console.error('AI suggestion error:', error);
-    return { success: false, error: { formErrors: ['An unexpected error occurred with the AI service. Please try again later.'], fieldErrors: {}} };
+    return { success: false, error: 'An unexpected error occurred.' };
   }
 }
