@@ -67,6 +67,26 @@ export async function verifyAndInvalidateQRCode(code: string): Promise<{ success
   return { success: false, message: 'Invalid or already used QR code. Please try another.' };
 }
 
+export async function checkInMemberById(memberId: string): Promise<{ success: boolean; message: string }> {
+  if (!memberId) {
+    return { success: false, message: 'Member ID cannot be empty.' };
+  }
+  if (checkedInMembers.has(memberId)) {
+    return { success: false, message: `Member ${memberId} has already been checked in.` };
+  }
+
+  // Invalidate any existing QR code for this member to maintain consistency
+  if (memberQRCodes.has(memberId)) {
+    const qrCode = memberQRCodes.get(memberId)!;
+    validQRCodes.delete(qrCode);
+    memberQRCodes.delete(memberId);
+  }
+  
+  checkedInMembers.add(memberId);
+  
+  return { success: true, message: `Successfully checked in ${memberId}.` };
+}
+
 export async function getCheckedInMembers(): Promise<string[]> {
     return Array.from(checkedInMembers);
 }

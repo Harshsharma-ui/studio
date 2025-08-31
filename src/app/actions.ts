@@ -5,7 +5,7 @@ import {
   PersonalizedEventSuggestionsInput,
   personalizedEventSuggestions,
 } from '@/ai/flows/personalized-event-suggestions';
-import { verifyAndInvalidateQRCode, generateMemberQRCode, getCheckedInMembers } from '@/lib/qr-store';
+import { verifyAndInvalidateQRCode, generateMemberQRCode, getCheckedInMembers, checkInMemberById } from '@/lib/qr-store';
 
 const qrCodeSchema = z.string().min(1, 'QR Code cannot be empty');
 const memberIdSchema = z.string().min(1, 'Member ID cannot be empty');
@@ -17,6 +17,15 @@ export async function verifyQRCodeAction(code: string) {
   } catch (error) {
     return { success: false, message: 'Invalid QR code format.' };
   }
+}
+
+export async function checkInMemberByIdAction(memberId: string) {
+    try {
+        memberIdSchema.parse(memberId);
+        return await checkInMemberById(memberId);
+    } catch (error) {
+        return { success: false, message: 'Invalid member ID format.' };
+    }
 }
 
 export async function generateMemberCodeAction(memberId: string) {
