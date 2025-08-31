@@ -98,3 +98,6 @@ export async function getPreGeneratedCodes(memberIds: string[]): Promise<Array<{
     }));
     return codes;
 }
+
+// Clear checkedInMembers
+checkedInMembers.clear();
