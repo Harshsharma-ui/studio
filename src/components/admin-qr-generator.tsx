@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader, QrCode, UserPlus } from 'lucide-react';
+import { Loader, QrCode, UserPlus, RefreshCcw } from 'lucide-react';
 import QRCode from 'qrcode.react';
 
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { generateMemberCodeAction } from '@/app/actions';
+import { generateMemberCodeAction, resetAllDataAction } from '@/app/actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
+import { Separator } from './ui/separator';
 
 const formSchema = z.object({
   memberId: z.string().min(2, 'Member ID must be at least 2 characters.').max(50),
@@ -30,9 +32,11 @@ type FormValues = z.infer<typeof formSchema>;
 
 export function AdminQrGenerator() {
   const [isPending, startTransition] = useTransition();
+  const [isResetting, startResetTransition] = useTransition();
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatedFor, setGeneratedFor] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -50,11 +54,33 @@ export function AdminQrGenerator() {
       if (response.success && response.code) {
         setGeneratedCode(response.code);
         setGeneratedFor(values.memberId);
+        form.reset();
       } else {
         setError(response.message || 'Failed to generate QR code.');
       }
     });
   };
+
+  const handleReset = () => {
+    startResetTransition(async () => {
+        const response = await resetAllDataAction();
+        if (response.success) {
+            toast({
+                title: 'Success',
+                description: response.message,
+            });
+            setGeneratedCode(null);
+            setGeneratedFor(null);
+            setError(null);
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: response.message,
+            });
+        }
+    });
+  }
 
   return (
     <Card className="w-full max-w-md mx-auto shadow-lg">
@@ -84,7 +110,7 @@ export function AdminQrGenerator() {
               )}
             />
 
-            <Button type="submit" disabled={isPending} className="w-full">
+            <Button type="submit" disabled={isPending || isResetting} className="w-full">
               {isPending ? (
                 <Loader className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -124,6 +150,23 @@ export function AdminQrGenerator() {
                 <AlertDescription>{error}</AlertDescription>
             </Alert>
         )}
+
+        <Separator className="my-8" />
+        
+        <div className="space-y-4">
+            <div className="text-center">
+                <h3 className="font-semibold">Event Controls</h3>
+                <p className="text-sm text-muted-foreground">Reset all event data.</p>
+            </div>
+             <Button variant="destructive" onClick={handleReset} disabled={isResetting} className="w-full">
+                {isResetting ? (
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                    <RefreshCcw className="mr-2 h-4 w-4" />
+                )}
+                Reset All Data
+            </Button>
+        </div>
       </CardContent>
     </Card>
   );

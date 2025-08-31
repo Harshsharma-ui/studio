@@ -5,10 +5,14 @@ import {
   PersonalizedEventSuggestionsInput,
   personalizedEventSuggestions,
 } from '@/ai/flows/personalized-event-suggestions';
-import { verifyAndInvalidateQRCode, generateMemberQRCode, getCheckedInMembers, checkInMemberById } from '@/lib/qr-store';
+import { verifyAndInvalidateQRCode, generateMemberQRCode, getCheckedInMembers, checkInMemberById, resetAllData, getPreGeneratedCodes } from '@/lib/qr-store';
 
 const qrCodeSchema = z.string().min(1, 'QR Code cannot be empty');
 const memberIdSchema = z.string().min(1, 'Member ID cannot be empty');
+
+export async function resetAllDataAction() {
+    return await resetAllData();
+}
 
 export async function verifyQRCodeAction(code: string) {
   try {
@@ -40,6 +44,10 @@ export async function generateMemberCodeAction(memberId: string) {
 
 export async function getCheckedInMembersAction() {
     return await getCheckedInMembers();
+}
+
+export async function getPreGeneratedCodesAction(memberIds: string[]) {
+    return await getPreGeneratedCodes(memberIds);
 }
 
 const aiSuggestionSchema = z.object({

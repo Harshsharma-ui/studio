@@ -32,13 +32,21 @@ function initializeQRCodes() {
 
 initializeQRCodes();
 
+export async function resetAllData(): Promise<{ success: boolean; message: string }> {
+    console.log('Resetting all QR code data...');
+    validQRCodes.clear();
+    memberQRCodes.clear();
+    checkedInMembers.clear();
+    console.log('All data has been reset.');
+    return { success: true, message: 'All QR codes and check-in data have been reset.' };
+}
+
 export async function generateMemberQRCode(memberId: string): Promise<string> {
   // If user already has a code, return it
   if (memberQRCodes.has(memberId)) {
-    // To allow re-generation for demo purposes, we don't return old code.
-    // Instead we invalidate old and create new.
-    const oldCode = memberQRCodes.get(memberId)!;
-    validQRCodes.delete(oldCode);
+    // To allow re-generation for demo purposes, we don't invalidate old code.
+    // We just return the existing one.
+    return memberQRCodes.get(memberId)!;
   }
   
   const newCode = randomUUID();
@@ -58,8 +66,7 @@ export async function verifyAndInvalidateQRCode(code: string): Promise<{ success
         return { success: false, message: `Member ${memberId} has already been checked in.` };
     }
 
-    validQRCodes.delete(code);
-    memberQRCodes.delete(memberId); // A code is single-use.
+    // A code is single-use. We don't delete from validQRCodes, but we do add to checkedInMembers
     checkedInMembers.add(memberId);
     
     return { success: true, message: `Check-in for ${memberId} successful. Welcome!` };
@@ -74,13 +81,6 @@ export async function checkInMemberById(memberId: string): Promise<{ success: bo
   if (checkedInMembers.has(memberId)) {
     return { success: false, message: `Member ${memberId} has already been checked in.` };
   }
-
-  // Invalidate any existing QR code for this member to maintain consistency
-  if (memberQRCodes.has(memberId)) {
-    const qrCode = memberQRCodes.get(memberId)!;
-    validQRCodes.delete(qrCode);
-    memberQRCodes.delete(memberId);
-  }
   
   checkedInMembers.add(memberId);
   
@@ -89,4 +89,12 @@ export async function checkInMemberById(memberId: string): Promise<{ success: bo
 
 export async function getCheckedInMembers(): Promise<string[]> {
     return Array.from(checkedInMembers);
+}
+
+export async function getPreGeneratedCodes(memberIds: string[]): Promise<Array<{memberId: string, qrCode: string}>> {
+    const codes = await Promise.all(memberIds.map(async (id) => {
+        const qrCode = await generateMemberQRCode(id);
+        return { memberId: id, qrCode };
+    }));
+    return codes;
 }
