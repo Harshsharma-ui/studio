@@ -43,17 +43,15 @@ export async function resetAllData(): Promise<{ success: boolean; message: strin
 }
 
 export async function generateMemberQRCode(memberId: string): Promise<string> {
-  // If user already has a code, return it
+  // If user already has a code, return it to ensure persistence.
   if (memberQRCodes.has(memberId)) {
-    // To allow re-generation for demo purposes, we don't invalidate old code.
-    // We just return the existing one.
     return memberQRCodes.get(memberId)!;
   }
   
   const newCode = randomUUID();
   memberQRCodes.set(memberId, newCode);
   validQRCodes.set(newCode, memberId);
-  checkedInMembers.delete(memberId); // Remove from checked-in if generating a new code
+  checkedInMembers.delete(memberId); // Ensure member is not checked-in if a new code is somehow generated
   
   console.log(`Generated QR code for ${memberId}. Total valid codes: ${validQRCodes.size}`);
   return newCode;
@@ -100,5 +98,6 @@ export async function getPreGeneratedCodes(memberIds: string[]): Promise<Array<{
     return codes;
 }
 
-// Clear checkedInMembers
-checkedInMembers.clear();
+// Clear checkedInMembers at startup if desired for a clean event start, but not QR codes.
+// For this case, we want checked in members to persist across reloads for the demo.
+// To clear checked-in members for a new event, use the "Reset All Data" button in the Admin panel.

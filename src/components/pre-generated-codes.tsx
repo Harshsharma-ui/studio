@@ -14,7 +14,7 @@ interface GeneratedCode {
   qrCode: string;
 }
 
-const PRE_DEFINED_MEMBERS = Array.from({ length: 3000 }, (_, i) => `member-${i + 1}`);
+const PRE_DEFINED_MEMBERS = Array.from({ length: 5000 }, (_, i) => `member-${i + 1}`);
 
 export function PreGeneratedCodes() {
   const [codes, setCodes] = useState<GeneratedCode[]>([]);
@@ -43,14 +43,14 @@ export function PreGeneratedCodes() {
           Pre-generated Member QR Codes
         </CardTitle>
         <CardDescription>
-          A list of pre-generated QR codes for demo and testing purposes. These are persistent until the server is restarted.
+          A list of persistent QR codes for event passes. These codes will remain valid for the duration of the server session.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground">
             <Loader className="mr-2 h-5 w-5 animate-spin" />
-            <span>Generating codes... This may take a moment for 3000 codes.</span>
+            <span>Generating codes... This may take a moment for 5000 codes.</span>
           </div>
         ) : (
           <ScrollArea className="h-[60vh]">
