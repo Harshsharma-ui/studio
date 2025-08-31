@@ -1,153 +1,154 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
-import { CheckCircle, QrCode, XCircle, Loader, Ticket } from 'lucide-react';
-import QRCode from 'qrcode.react';
+import { CheckCircle, QrCode, XCircle, Loader, Camera, CameraOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { verifyQRCodeAction, getSampleCodeAction } from '@/app/actions';
+import { verifyQRCodeAction } from '@/app/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
+import jsQR from 'jsqr';
 
-type ScanStatus = 'idle' | 'scanning' | 'success' | 'error';
-
-const REFRESH_INTERVAL = 10000; // 10 seconds
+type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'no-camera';
 
 export function QrScanner() {
   const [status, setStatus] = useState<ScanStatus>('idle');
   const [message, setMessage] = useState('');
   const [isPending, startTransition] = useTransition();
-  const { toast } = useToast();
-  const [currentCode, setCurrentCode] = useState<string | null>(null);
-  const [progress, setProgress] = useState(100);
-  const intervalRef = useRef<NodeJS.Timeout>();
-   const progressIntervalRef = useRef<NodeJS.Timeout>();
-
-  const fetchNewCode = async () => {
-    const sample = await getSampleCodeAction();
-    if (sample.code) {
-      setCurrentCode(sample.code);
-      resetProgress();
-    } else {
-      setCurrentCode(null);
-      toast({
-        variant: 'destructive',
-        title: 'Simulation Over',
-        description: "No more valid QR codes to test.",
-      });
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-    }
-  };
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   
-  const resetProgress = () => {
-    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-    setProgress(100);
-    const startTime = Date.now();
-    progressIntervalRef.current = setInterval(() => {
-      const elapsedTime = Date.now() - startTime;
-      const newProgress = 100 - (elapsedTime / REFRESH_INTERVAL) * 100;
-      if (newProgress <= 0) {
-        setProgress(0);
-        clearInterval(progressIntervalRef.current);
-      } else {
-        setProgress(newProgress);
-      }
-    }, 100);
-  };
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    fetchNewCode();
-    intervalRef.current = setInterval(fetchNewCode, REFRESH_INTERVAL);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    const getCameraPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        setStatus('no-camera');
+        setMessage('Camera access denied. Please enable camera permissions in your browser settings.');
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings.',
+        });
+      }
     };
-  }, []);
 
-  const handleScan = (type: 'valid' | 'invalid') => {
+    getCameraPermission();
+    
+    return () => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+        }
+    }
+  }, [toast]);
+
+  const tick = () => {
+    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+      if (!canvasRef.current) return;
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      const ctx = canvas.getContext('2d');
+
+      if (ctx) {
+        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert',
+        });
+
+        if (code && code.data && !isPending) {
+          handleScan(code.data);
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  };
+  
+  useEffect(() => {
+    if (hasCameraPermission) {
+        const animationFrame = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(animationFrame);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasCameraPermission, isPending]);
+
+  const handleScan = (qrCode: string) => {
+    if (isPending) return;
     setStatus('scanning');
-    setMessage('');
+    setMessage(`Scanning code...`);
     
     startTransition(async () => {
-      let codeToScan: string | null;
-
-      if (type === 'valid') {
-         codeToScan = currentCode;
-         if (!codeToScan) {
-            toast({
-              variant: 'destructive',
-              title: 'Simulation Over',
-              description: "No more valid QR codes to test.",
-            });
-            setStatus('error');
-            setMessage('No more valid QR codes left for simulation.');
-            return;
-         }
-      } else {
-        // Use a string that is not a valid UUID to simulate an invalid code
-        codeToScan = 'invalid-qr-code-for-testing';
-      }
-
-      const result = await verifyQRCodeAction(codeToScan);
+      const result = await verifyQRCodeAction(qrCode);
       if (result.success) {
         setStatus('success');
-        // Fetch a new code immediately after successful scan
-        if (type === 'valid') {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            fetchNewCode();
-            intervalRef.current = setInterval(fetchNewCode, REFRESH_INTERVAL);
-        }
       } else {
         setStatus('error');
       }
       setMessage(result.message);
+      
+      // Reset status after a few seconds to allow for new scans
+      setTimeout(() => {
+          if (status !== 'no-camera') {
+            setStatus('idle');
+            setMessage('');
+          }
+      }, 3000);
     });
   };
 
-  const statusIcons: Record<ScanStatus, React.ReactNode> = {
+  const statusIcons: Record<Exclude<ScanStatus, 'scanning'>, React.ReactNode> = {
     idle: <QrCode className="h-16 w-16 text-muted-foreground" />,
-    scanning: <Loader className="h-16 w-16 animate-spin text-primary" />,
     success: <CheckCircle className="h-16 w-16 text-green-500" />,
     error: <XCircle className="h-16 w-16 text-destructive" />,
+    'no-camera': <CameraOff className="h-16 w-16 text-muted-foreground" />,
   };
 
   return (
     <Card className="w-full max-w-md mx-auto shadow-lg">
       <CardHeader>
-        <CardTitle className="text-center">QR Code Check-in</CardTitle>
+        <CardTitle className="text-center flex items-center justify-center gap-2">
+            <Camera />
+            Live QR Code Scanner
+        </CardTitle>
         <CardDescription className="text-center">
-          A new QR code is generated every 10 seconds.
+          Point your camera at a QR code to check-in an attendee.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6">
         <div
           className={cn(
-            'flex h-48 w-48 items-center justify-center rounded-lg bg-secondary transition-all duration-300 p-4',
-             status === 'success' && 'bg-green-100 dark:bg-green-900/20',
-             status === 'error' && 'bg-red-100 dark:bg-red-900/20',
-             isPending && 'animate-pulse'
+            'relative flex h-64 w-full items-center justify-center rounded-lg bg-secondary transition-all duration-300 overflow-hidden',
+             status === 'success' && 'ring-4 ring-green-500',
+             status === 'error' && 'ring-4 ring-destructive',
           )}
         >
-          {isPending ? (
-            statusIcons.scanning
-          ) : currentCode ? (
-            <div className="bg-white p-2 rounded-md">
-                <QRCode value={currentCode} size={160} level="H" />
-            </div>
-          ) : (
-            statusIcons.idle
-          )}
-        </div>
+            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+            <canvas ref={canvasRef} className="hidden" />
 
-        {currentCode && (
-            <div className="w-full px-4">
-                <Progress value={progress} className="h-2" />
-                <p className="text-xs text-muted-foreground text-center mt-1">QR code refreshes in {Math.ceil(progress/10)}s</p>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                {isPending ? <Loader className="h-16 w-16 animate-spin text-primary" /> : statusIcons[status === 'scanning' ? 'idle' : status]}
             </div>
-        )}
+
+            {/* Scanning overlay */}
+            {!isPending && status === 'idle' && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-3/4 h-3/4 border-4 border-dashed border-white/50 rounded-lg"/>
+                </div>
+            )}
+        </div>
 
         {message && (
           <Alert variant={status === 'success' ? 'default' : 'destructive'} className={cn('text-center', status === 'success' && 'border-green-500/50')}>
@@ -158,31 +159,17 @@ export function QrScanner() {
             <AlertDescription>{message}</AlertDescription>
           </Alert>
         )}
+        
+        {hasCameraPermission === false && (
+             <Alert variant="destructive">
+                <CameraOff className="h-4 w-4" />
+                <AlertTitle>No Camera Access</AlertTitle>
+                <AlertDescription>
+                    Please grant camera permissions in your browser to use the scanner.
+                </AlertDescription>
+            </Alert>
+        )}
 
-        <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-4">
-          <Button
-            onClick={() => handleScan('valid')}
-            disabled={isPending || !currentCode}
-            size="lg"
-            className="w-full"
-          >
-            {isPending && status === 'scanning' ? <Loader className="mr-2"/> : <Ticket className="mr-2 h-5 w-5" />}
-            Scan Valid Code
-          </Button>
-          <Button
-            onClick={() => handleScan('invalid')}
-            disabled={isPending}
-            size="lg"
-            variant="outline"
-            className="w-full"
-          >
-            <XCircle className="mr-2 h-5 w-5" />
-            Scan Invalid Code
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground text-center px-4">
-            Click "Scan Valid Code" to simulate a successful check-in with the QR code displayed above. A new code is generated after each scan or every 10 seconds.
-        </p>
       </CardContent>
     </Card>
   );

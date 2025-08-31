@@ -1,7 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QrScanner } from "@/components/qr-scanner";
 import { AiSuggester } from "@/components/ai-suggester";
+import { AdminQrGenerator } from "@/components/admin-qr-generator";
 import { Icons } from "@/components/icons";
+import { ShieldCheck } from "lucide-react";
 
 export default function Home() {
   return (
@@ -18,12 +20,21 @@ export default function Home() {
         </p>
       </header>
       
-      <Tabs defaultValue="check-in" className="w-full max-w-4xl">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="check-in">QR Check-in</TabsTrigger>
+      <Tabs defaultValue="scanner" className="w-full max-w-4xl">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="admin">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Admin
+          </TabsTrigger>
+          <TabsTrigger value="scanner">QR Check-in</TabsTrigger>
           <TabsTrigger value="ai-suggester">AI Event Suggester</TabsTrigger>
         </TabsList>
-        <TabsContent value="check-in" className="mt-6">
+        <TabsContent value="admin" className="mt-6">
+          <div className="flex justify-center">
+            <AdminQrGenerator />
+          </div>
+        </TabsContent>
+        <TabsContent value="scanner" className="mt-6">
           <div className="flex justify-center">
             <QrScanner />
           </div>

@@ -3,42 +3,50 @@ import { randomUUID } from 'crypto';
 
 // This declaration is to extend the NodeJS.Global interface
 declare global {
-  var validQRCodes: Set<string>;
+  var memberQRCodes: Map<string, string>; // Maps memberId to qrCode
+  var validQRCodes: Map<string, string>;  // Maps qrCode to memberId
 }
 
-let validQRCodes: Set<string>;
-
-const TOTAL_CODES = 3000;
+let memberQRCodes: Map<string, string>;
+let validQRCodes: Map<string, string>;
 
 function initializeQRCodes() {
-  // Use a global variable to persist the Set across hot reloads in development.
-  if (global.validQRCodes) {
+  if (global.validQRCodes && global.memberQRCodes) {
     validQRCodes = global.validQRCodes;
+    memberQRCodes = global.memberQRCodes;
   } else {
     console.log('Initializing QR code store...');
-    validQRCodes = new Set();
-    for (let i = 0; i < TOTAL_CODES; i++) {
-      validQRCodes.add(randomUUID());
-    }
+    validQRCodes = new Map();
+    memberQRCodes = new Map();
     global.validQRCodes = validQRCodes;
-    console.log(`${validQRCodes.size} QR codes initialized.`);
+    global.memberQRCodes = memberQRCodes;
+    console.log('QR code store initialized.');
   }
 }
 
 initializeQRCodes();
 
-export function getSampleValidCode(): string | null {
-  if (validQRCodes.size === 0) {
-    return null;
+export async function generateMemberQRCode(memberId: string): Promise<string> {
+  // If user already has a code, return it
+  if (memberQRCodes.has(memberId)) {
+    return memberQRCodes.get(memberId)!;
   }
-  // Return a sample code for simulation purposes without removing it yet.
-  return validQRCodes.values().next().value;
+  
+  const newCode = randomUUID();
+  memberQRCodes.set(memberId, newCode);
+  validQRCodes.set(newCode, memberId);
+  
+  console.log(`Generated QR code for ${memberId}. Total codes: ${validQRCodes.size}`);
+  return newCode;
 }
 
 export async function verifyAndInvalidateQRCode(code: string): Promise<{ success: boolean; message: string }> {
   if (validQRCodes.has(code)) {
+    const memberId = validQRCodes.get(code)!;
     validQRCodes.delete(code);
-    return { success: true, message: `Check-in successful. Welcome! Remaining tickets: ${validQRCodes.size}` };
+    memberQRCodes.delete(memberId); // Invalidate the code for the member
+    
+    return { success: true, message: `Check-in for ${memberId} successful. Welcome! Remaining tickets: ${validQRCodes.size}` };
   }
   return { success: false, message: 'Invalid or already used QR code. Please try another.' };
 }

@@ -5,28 +5,28 @@ import {
   PersonalizedEventSuggestionsInput,
   personalizedEventSuggestions,
 } from '@/ai/flows/personalized-event-suggestions';
-import { verifyAndInvalidateQRCode, getSampleValidCode } from '@/lib/qr-store';
+import { verifyAndInvalidateQRCode, generateMemberQRCode } from '@/lib/qr-store';
 
-const qrCodeSchema = z.string().uuid();
+const qrCodeSchema = z.string().min(1, 'QR Code cannot be empty');
+const memberIdSchema = z.string().min(1, 'Member ID cannot be empty');
 
 export async function verifyQRCodeAction(code: string) {
   try {
-    // We can check if it's a valid UUID, though our invalid test case uses a non-UUID.
-    // The main logic is checking existence in the set.
     qrCodeSchema.parse(code);
     return await verifyAndInvalidateQRCode(code);
   } catch (error) {
-    // This will catch both parsing errors and if the code is simply not found.
-    return await verifyAndInvalidateQRCode(code);
+    return { success: false, message: 'Invalid QR code format.' };
   }
 }
 
-export async function getSampleCodeAction() {
-  const code = getSampleValidCode();
-  if (!code) {
-    return { code: null, message: "No more valid tickets!" };
+export async function generateMemberCodeAction(memberId: string) {
+  try {
+    memberIdSchema.parse(memberId);
+    const code = await generateMemberQRCode(memberId);
+    return { success: true, code, message: `QR Code generated for ${memberId}.` };
+  } catch (error) {
+    return { success: false, code: null, message: 'Failed to generate QR code. Invalid Member ID.' };
   }
-  return { code, message: "Here's a sample valid code for testing." };
 }
 
 const aiSuggestionSchema = z.object({
