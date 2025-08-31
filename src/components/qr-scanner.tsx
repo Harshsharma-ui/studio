@@ -20,6 +20,7 @@ export function QrScanner() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const requestRef = useRef<number>();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -50,10 +51,15 @@ export function QrScanner() {
             const stream = videoRef.current.srcObject as MediaStream;
             stream.getTracks().forEach(track => track.stop());
         }
+        if (requestRef.current) {
+            cancelAnimationFrame(requestRef.current);
+        }
     }
   }, [toast]);
 
   const tick = () => {
+    if (isPending || status !== 'idle') return;
+
     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
       if (!canvasRef.current) return;
       const canvas = canvasRef.current;
@@ -69,29 +75,34 @@ export function QrScanner() {
           inversionAttempts: 'dontInvert',
         });
 
-        if (code && code.data && !isPending && status === 'idle') {
+        if (code && code.data) {
           handleScan(code.data);
         }
       }
     }
-    requestAnimationFrame(tick);
+    requestRef.current = requestAnimationFrame(tick);
   };
   
   useEffect(() => {
-    let animationFrameId: number;
-    if (hasCameraPermission && status === 'idle') {
-        const tickWrapper = () => {
-            tick();
-            animationFrameId = requestAnimationFrame(tickWrapper);
-        }
-        animationFrameId = requestAnimationFrame(tickWrapper);
+    if (hasCameraPermission && status === 'idle' && !isPending) {
+        requestRef.current = requestAnimationFrame(tick);
     }
-    return () => cancelAnimationFrame(animationFrameId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasCameraPermission, isPending, status]);
+    return () => {
+        if (requestRef.current) {
+            cancelAnimationFrame(requestRef.current);
+        }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasCameraPermission, status, isPending]);
 
   const handleScan = (qrCode: string) => {
     if (isPending) return;
+    
+    // Stop scanning
+    if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+    }
+
     setStatus('scanning');
     setMessage(`Verifying code...`);
     
