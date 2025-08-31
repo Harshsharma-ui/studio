@@ -14,16 +14,7 @@ interface GeneratedCode {
   qrCode: string;
 }
 
-const PRE_DEFINED_MEMBERS = [
-    'member-1',
-    'member-2',
-    'member-3',
-    'john.doe@example.com',
-    'jane.doe@example.com',
-    'test-user-alpha',
-    'test-user-beta',
-    'test-user-gamma',
-]
+const PRE_DEFINED_MEMBERS = Array.from({ length: 3000 }, (_, i) => `member-${i + 1}`);
 
 export function PreGeneratedCodes() {
   const [codes, setCodes] = useState<GeneratedCode[]>([]);
@@ -59,7 +50,7 @@ export function PreGeneratedCodes() {
         {isLoading ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground">
             <Loader className="mr-2 h-5 w-5 animate-spin" />
-            <span>Generating codes...</span>
+            <span>Generating codes... This may take a moment for 3000 codes.</span>
           </div>
         ) : (
           <ScrollArea className="h-[60vh]">
