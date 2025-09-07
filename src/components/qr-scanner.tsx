@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
@@ -147,7 +148,9 @@ export function QrScanner() {
 
   const onManualSubmit = (values: FormValues) => {
     startManualCheckinTransition(async () => {
-      const result = await checkInMemberByIdAction(values.memberId);
+      // We can use verifyQRCodeAction for manual entry as well since it now handles member IDs.
+      // This keeps the logic consistent.
+      const result = await verifyQRCodeAction(values.memberId);
       if (result.success) {
         toast({
           title: 'Check-in Successful',
@@ -179,7 +182,7 @@ export function QrScanner() {
             Live Event Check-in
         </CardTitle>
         <CardDescription className="text-center">
-          Point your camera at a QR code or enter a Member ID below.
+          Point your camera at a QR code or enter a Member ID/Code below.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6">
@@ -230,7 +233,7 @@ export function QrScanner() {
         <div className="w-full space-y-4">
             <div className="text-center">
                 <h3 className="font-semibold">Manual Check-in</h3>
-                <p className="text-sm text-muted-foreground">If QR scanning is not possible, enter the Member ID.</p>
+                <p className="text-sm text-muted-foreground">If QR scanning is not possible, enter the Member ID or Code.</p>
             </div>
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onManualSubmit)} className="flex items-start gap-2">
@@ -240,7 +243,7 @@ export function QrScanner() {
                     render={({ field }) => (
                         <FormItem className="flex-grow">
                         <FormControl>
-                            <Input placeholder="Enter Member ID to check-in" {...field} />
+                            <Input placeholder="Enter Member ID or 8-digit code" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>

@@ -24,10 +24,11 @@ function initializeStore() {
 initializeStore();
 
 function generateDeterministicQRCode(memberId: string): string {
-    // Create a SHA-256 hash of the memberId to generate a unique, deterministic QR code.
+    // Create a SHA-256 hash of the memberId, take the first 8 chars, and make it uppercase.
+    // This creates a unique, deterministic, non-sequential-looking alphanumeric code.
     const hash = createHash('sha256');
     hash.update(memberId);
-    return hash.digest('hex');
+    return hash.digest('hex').substring(0, 8).toUpperCase();
 }
 
 function getMemberIdFromCode(code: string, memberIds: string[]): string | null {
@@ -52,9 +53,13 @@ export async function generateMemberQRCode(memberId: string): Promise<string> {
 export async function verifyAndInvalidateQRCode(code: string): Promise<{ success: boolean; message: string }> {
   // To validate, we need to know the possible memberIds. We'll generate them on the fly.
   const maxMembers = 5000;
-  const allMemberIds = Array.from({ length: maxMembers }, (_, i) => `member-${i + 1}`);
+  // This also includes any ad-hoc members created via the admin panel.
+  const adHocMembers = Array.from(checkedInMembers);
+  const allPossibleMemberIds = Array.from(new Set(
+      Array.from({ length: maxMembers }, (_, i) => `member-${i + 1}`).concat(adHocMembers)
+  ));
   
-  const memberId = getMemberIdFromCode(code, allMemberIds);
+  const memberId = getMemberIdFromCode(code, allPossibleMemberIds);
 
   if (memberId) {
     if (checkedInMembers.has(memberId)) {
@@ -65,6 +70,17 @@ export async function verifyAndInvalidateQRCode(code: string): Promise<{ success
     
     return { success: true, message: `Check-in for ${memberId} successful. Welcome!` };
   }
+
+  // Also check if the code is a memberId itself for manual check-in
+  if (allPossibleMemberIds.includes(code)) {
+     if (checkedInMembers.has(code)) {
+      return { success: false, message: `Member ${code} has already been checked in.` };
+    }
+    checkedInMembers.add(code);
+    return { success: true, message: `Check-in for ${code} successful. Welcome!` };
+  }
+
+
   return { success: false, message: 'Invalid QR code. Please try another.' };
 }
 
@@ -76,6 +92,13 @@ export async function checkInMemberById(memberId: string): Promise<{ success: bo
     return { success: false, message: `Member ${memberId} has already been checked in.` };
   }
   
+  // This is a simplified check. A real app would verify against a member database.
+  const maxMembers = 5000;
+  const preGeneratedMemberIds = Array.from({ length: maxMembers }, (_, i) => `member-${i + 1}`);
+  if (!preGeneratedMemberIds.includes(memberId)) {
+    console.log(`Ad-hoc member ${memberId} checked in. Not in pre-generated list.`)
+  }
+
   checkedInMembers.add(memberId);
   
   return { success: true, message: `Successfully checked in ${memberId}.` };
