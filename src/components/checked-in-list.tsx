@@ -8,7 +8,7 @@ import * as z from 'zod';
 import { getCheckedInMembersAction, checkInMemberByIdAction } from '@/app/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { UserCheck, Users, Loader, CheckCircle, XCircle } from 'lucide-react';
+import { UserCheck, Users, Loader, CheckCircle, RefreshCcw } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Form, FormControl, FormField, FormItem, FormMessage } from './ui/form';
 import { Input } from './ui/input';
@@ -26,6 +26,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function CheckedInList() {
   const [checkedInMembers, setCheckedInMembers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, startFetchingTransition] = useTransition();
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
@@ -37,21 +38,34 @@ export function CheckedInList() {
   });
 
   const fetchMembers = async () => {
+    setIsLoading(true);
     try {
       const members = await getCheckedInMembersAction();
       setCheckedInMembers(members.sort());
     } catch (error) {
       console.error('Failed to fetch checked-in members:', error);
+      toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to fetch checked-in members.',
+      });
     } finally {
       setIsLoading(false);
     }
   };
+  
+  const handleRefresh = () => {
+    startFetchingTransition(async () => {
+        await fetchMembers();
+        toast({
+            title: 'List Refreshed',
+            description: 'The checked-in list has been updated.',
+        });
+    });
+  }
 
   useEffect(() => {
     fetchMembers();
-    const intervalId = setInterval(fetchMembers, 3000); // Refresh every 3 seconds
-
-    return () => clearInterval(intervalId);
   }, []);
 
   const onSubmit = (values: FormValues) => {
@@ -82,7 +96,7 @@ export function CheckedInList() {
           Checked-in Members
         </CardTitle>
         <CardDescription className="flex justify-between items-center">
-          A real-time list of members who have been scanned in.
+          A list of members who have been scanned in.
           <Badge variant="secondary">{checkedInMembers.length} Total</Badge>
         </CardDescription>
       </CardHeader>
@@ -107,10 +121,16 @@ export function CheckedInList() {
             </Button>
           </form>
         </Form>
+        <div className="flex justify-end mb-4">
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
+                {isFetching ? <Loader className="animate-spin" /> : <RefreshCcw />}
+                Refresh List
+            </Button>
+        </div>
 
         <Separator className="mb-4" />
         
-        {isLoading ? (
+        {(isLoading && !isFetching) ? (
           <div className="flex items-center justify-center h-48 text-muted-foreground">
             <Loader className="mr-2 h-5 w-5 animate-spin" />
             <span>Loading members...</span>
