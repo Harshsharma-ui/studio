@@ -3,8 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QrScanner } from "@/components/qr-scanner";
 import { AdminQrGenerator } from "@/components/admin-qr-generator";
 import { Icons } from "@/components/icons";
-import { QrCode, ShieldCheck, Users } from "lucide-react";
-import { PreGeneratedCodes } from "@/components/pre-generated-codes";
+import { ShieldCheck, Users } from "lucide-react";
 import { CheckedInList } from "@/components/checked-in-list";
 
 export default function Home() {
@@ -23,26 +22,17 @@ export default function Home() {
       </header>
       
       <Tabs defaultValue="scanner" className="w-full max-w-4xl">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="admin">
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            Admin
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="scanner">QR Check-in</TabsTrigger>
           <TabsTrigger value="checked-in">
               <Users className="mr-2 h-4 w-4" />
               Checked-in
           </TabsTrigger>
-          <TabsTrigger value="pre-generated">
-              <QrCode className="mr-2 h-4 w-4" />
-              Pre-generated
+          <TabsTrigger value="admin">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Admin
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="admin" className="mt-6">
-          <div className="flex justify-center">
-            <AdminQrGenerator />
-          </div>
-        </TabsContent>
         <TabsContent value="scanner" className="mt-6">
           <div className="flex justify-center">
             <QrScanner />
@@ -53,10 +43,10 @@ export default function Home() {
                 <CheckedInList />
             </div>
         </TabsContent>
-        <TabsContent value="pre-generated" className="mt-6">
-            <div className="flex justify-center">
-                <PreGeneratedCodes />
-            </div>
+        <TabsContent value="admin" className="mt-6">
+          <div className="flex justify-center">
+            <AdminQrGenerator />
+          </div>
         </TabsContent>
       </Tabs>
 
