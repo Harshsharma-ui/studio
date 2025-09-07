@@ -1,27 +1,48 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
-import { CheckCircle, QrCode, XCircle, Loader, Camera, CameraOff } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { CheckCircle, QrCode, XCircle, Loader, Camera, CameraOff, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { verifyQRCodeAction } from '@/app/actions';
+import { verifyQRCodeAction, checkInMemberByIdAction } from '@/app/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import jsQR from 'jsqr';
+import { Form, FormControl, FormField, FormItem, FormMessage } from './ui/form';
+import { Input } from './ui/input';
+import { Separator } from './ui/separator';
 
 type ScanStatus = 'idle' | 'scanning' | 'success' | 'error' | 'no-camera';
+
+const formSchema = z.object({
+  memberId: z.string().min(1, 'Member ID is required.'),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
 
 export function QrScanner() {
   const [status, setStatus] = useState<ScanStatus>('idle');
   const [message, setMessage] = useState('');
   const [isPending, startTransition] = useTransition();
+  const [isManualCheckinPending, startManualCheckinTransition] = useTransition();
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const { toast } = useToast();
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      memberId: '',
+    },
+  });
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -58,7 +79,7 @@ export function QrScanner() {
   }, [toast]);
 
   const tick = () => {
-    if (isPending || status !== 'idle') return;
+    if (isPending || status !== 'idle' || isManualCheckinPending) return;
 
     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
       if (!canvasRef.current) return;
@@ -84,7 +105,7 @@ export function QrScanner() {
   };
   
   useEffect(() => {
-    if (hasCameraPermission && status === 'idle' && !isPending) {
+    if (hasCameraPermission && status === 'idle' && !isPending && !isManualCheckinPending) {
         requestRef.current = requestAnimationFrame(tick);
     }
     return () => {
@@ -93,7 +114,7 @@ export function QrScanner() {
         }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasCameraPermission, status, isPending]);
+  }, [hasCameraPermission, status, isPending, isManualCheckinPending]);
 
   const handleScan = (qrCode: string) => {
     if (isPending) return;
@@ -124,6 +145,25 @@ export function QrScanner() {
     });
   };
 
+  const onManualSubmit = (values: FormValues) => {
+    startManualCheckinTransition(async () => {
+      const result = await checkInMemberByIdAction(values.memberId);
+      if (result.success) {
+        toast({
+          title: 'Check-in Successful',
+          description: result.message,
+        });
+        form.reset();
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Check-in Failed',
+          description: result.message,
+        });
+      }
+    });
+  };
+
   const statusIcons: Record<Exclude<ScanStatus, 'scanning'>, React.ReactNode> = {
     idle: <QrCode className="h-16 w-16 text-white/80" />,
     success: <CheckCircle className="h-24 w-24 text-white" />,
@@ -136,10 +176,10 @@ export function QrScanner() {
       <CardHeader>
         <CardTitle className="text-center flex items-center justify-center gap-2">
             <Camera />
-            Live QR Code Scanner
+            Live Event Check-in
         </CardTitle>
         <CardDescription className="text-center">
-          Point your camera at a member's QR code to check them in.
+          Point your camera at a QR code or enter a Member ID below.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6">
@@ -156,7 +196,7 @@ export function QrScanner() {
               status === 'success' && 'bg-green-500/80',
               status === 'error' && 'bg-red-500/80',
             )}>
-                {isPending ? <Loader className="h-16 w-16 animate-spin text-primary-foreground" /> : statusIcons[status === 'scanning' ? 'idle' : status]}
+                {(isPending || isManualCheckinPending) ? <Loader className="h-16 w-16 animate-spin text-primary-foreground" /> : statusIcons[status === 'scanning' ? 'idle' : status]}
             </div>
 
             {/* Scanning overlay */}
@@ -184,6 +224,36 @@ export function QrScanner() {
                 <AlertDescription>{message}</AlertDescription>
             </Alert>
         )}
+
+        <Separator className="w-full" />
+
+        <div className="w-full space-y-4">
+            <div className="text-center">
+                <h3 className="font-semibold">Manual Check-in</h3>
+                <p className="text-sm text-muted-foreground">If QR scanning is not possible, enter the Member ID.</p>
+            </div>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onManualSubmit)} className="flex items-start gap-2">
+                    <FormField
+                    control={form.control}
+                    name="memberId"
+                    render={({ field }) => (
+                        <FormItem className="flex-grow">
+                        <FormControl>
+                            <Input placeholder="Enter Member ID to check-in" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <Button type="submit" disabled={isManualCheckinPending}>
+                        {isManualCheckinPending ? <Loader className="animate-spin" /> : <UserCheck />}
+                        <span className="sr-only">Check-in</span>
+                    </Button>
+                </form>
+            </Form>
+        </div>
+
       </CardContent>
     </Card>
   );

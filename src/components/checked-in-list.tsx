@@ -2,40 +2,20 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { getCheckedInMembersAction, checkInMemberByIdAction } from '@/app/actions';
+import { getCheckedInMembersAction } from '@/app/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { UserCheck, Users, Loader, CheckCircle, RefreshCcw } from 'lucide-react';
 import { Badge } from './ui/badge';
-import { Form, FormControl, FormField, FormItem, FormMessage } from './ui/form';
-import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from './ui/separator';
-
-const formSchema = z.object({
-  memberId: z.string().min(1, 'Member ID is required.'),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
 
 export function CheckedInList() {
   const [checkedInMembers, setCheckedInMembers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, startFetchingTransition] = useTransition();
-  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      memberId: '',
-    },
-  });
 
   const fetchMembers = async () => {
     setIsLoading(true);
@@ -66,27 +46,8 @@ export function CheckedInList() {
 
   useEffect(() => {
     fetchMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const onSubmit = (values: FormValues) => {
-    startTransition(async () => {
-      const result = await checkInMemberByIdAction(values.memberId);
-      if (result.success) {
-        toast({
-          title: 'Check-in Successful',
-          description: result.message,
-        });
-        form.reset();
-        await fetchMembers(); // Refresh list immediately
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Check-in Failed',
-          description: result.message,
-        });
-      }
-    });
-  };
 
   return (
     <Card className="w-full max-w-md mx-auto shadow-lg">
@@ -101,26 +62,6 @@ export function CheckedInList() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-2 mb-4">
-            <FormField
-              control={form.control}
-              name="memberId"
-              render={({ field }) => (
-                <FormItem className="flex-grow">
-                  <FormControl>
-                    <Input placeholder="Enter Member ID to check-in" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader className="animate-spin" /> : <UserCheck />}
-              <span className="sr-only">Check-in</span>
-            </Button>
-          </form>
-        </Form>
         <div className="flex justify-end mb-4">
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
                 {isFetching ? <Loader className="animate-spin" /> : <RefreshCcw />}
@@ -151,7 +92,7 @@ export function CheckedInList() {
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground pt-12">
                   <Users className="h-10 w-10 mb-2" />
                   <p className="font-semibold">No one has checked in yet.</p>
-                  <p className="text-sm text-center">Scan a member's QR code or use the form above.</p>
+                  <p className="text-sm text-center">Scan a member's QR code to check them in.</p>
                 </div>
               )}
             </div>
