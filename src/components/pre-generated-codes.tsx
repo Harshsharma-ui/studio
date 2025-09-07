@@ -88,31 +88,29 @@ export function PreGeneratedCodes() {
             tempDiv.style.left = '-9999px';
             document.body.appendChild(tempDiv);
             
-            const qrCanvas = document.createElement('canvas');
-            ReactDOM.render(<QRCode value={qrCode} size={qrSize} level="H" renderAs="canvas" />, tempDiv, () => {
-                const renderedCanvas = tempDiv.querySelector('canvas');
-                if (renderedCanvas) {
-                    qrCanvas.width = renderedCanvas.width;
-                    qrCanvas.height = renderedCanvas.height;
-                    const qrCtx = qrCanvas.getContext('2d');
-                    if (qrCtx) {
-                        qrCtx.drawImage(renderedCanvas, 0, 0);
+            await new Promise<void>((resolve) => {
+                ReactDOM.render(
+                    <QRCode value={qrCode} size={qrSize} level="H" renderAs="canvas" />, 
+                    tempDiv, 
+                    async () => {
+                        const renderedCanvas = tempDiv.querySelector('canvas');
+                        if (renderedCanvas) {
+                             const dataUrl = renderedCanvas.toDataURL('image/png');
+                             const img = new Image();
+                             await new Promise(resolveImg => {
+                                 img.onload = resolveImg;
+                                 img.src = dataUrl;
+                             });
+                             ctx.drawImage(img, padding, padding);
+                        }
+                        resolve();
                     }
-                }
+                );
             });
-
-            const dataUrl = qrCanvas.toDataURL('image/png');
+            
             ReactDOM.unmountComponentAtNode(tempDiv);
             document.body.removeChild(tempDiv);
             
-            const img = new Image();
-            await new Promise(resolve => {
-                img.onload = resolve;
-                img.src = dataUrl;
-            });
-            
-            ctx.drawImage(img, padding, padding);
-
             ctx.fillStyle = 'black';
             ctx.font = '16px sans-serif';
             ctx.textAlign = 'center';
