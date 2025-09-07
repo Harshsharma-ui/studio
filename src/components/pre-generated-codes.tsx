@@ -4,9 +4,6 @@
 import { useState, useEffect, useTransition } from 'react';
 import { Loader, QrCode, User, Download } from 'lucide-react';
 import QRCode from 'qrcode.react';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
-
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getPreGeneratedCodesAction } from '@/app/actions';
@@ -36,8 +33,6 @@ export function PreGeneratedCodes() {
       const batch = PRE_DEFINED_MEMBERS.slice(i, i + BATCH_SIZE);
       const response = await getPreGeneratedCodesAction(batch);
       allCodes = [...allCodes, ...response];
-      // Update state incrementally to show progress if needed, or just wait till the end.
-      // For now, we'll update at the end.
     }
     setCodes(allCodes);
     setIsLoading(false);
@@ -62,48 +57,101 @@ export function PreGeneratedCodes() {
 
     setIsDownloading(true);
     toast({
-        title: 'Preparing Download',
-        description: 'Generating zip file of all QR codes. This might take a while...',
+        title: 'Starting Download',
+        description: 'Your browser may ask for permission to download multiple files. Please allow it.',
     });
 
+    const downloadDelay = 100; // ms between each download to avoid browser blocking
+
     try {
-        const zip = new JSZip();
-        
-        // This process can be slow for 5000 codes, let's do it in chunks.
         for (let i = 0; i < codes.length; i++) {
             const { memberId, qrCode } = codes[i];
+            
+            // Create a canvas to combine QR code and text
             const canvas = document.createElement('canvas');
-            const qrCodeInstance = new (QRCode as any)({ value: qrCode, size: 256, level: 'H' });
-            const dataUrl = qrCodeInstance.toDataURL('image/png');
-            const pngData = dataUrl.split(',')[1];
-            zip.file(`${memberId}.png`, pngData, { base64: true });
+            const ctx = canvas.getContext('2d');
+            if (!ctx) continue;
 
-            // To avoid freezing the browser, we can yield to the main thread periodically.
-            if (i % 100 === 0) {
-                 await new Promise(resolve => setTimeout(resolve, 0));
+            const qrSize = 256;
+            const padding = 20;
+            const textHeight = 40;
+            
+            canvas.width = qrSize + padding * 2;
+            canvas.height = qrSize + padding * 2 + textHeight;
+            
+            // White background
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the QR code
+            const tempCanvas = document.createElement('canvas');
+            const qrNode = <QRCode value={qrCode} size={qrSize} level="H" />;
+            const qrCanvas: HTMLCanvasElement | null = document.querySelector('.qr-code-canvas');
+
+            // We need a rendered QR code to draw it. A bit of a hack: render it, grab it, draw it.
+            const tempDiv = document.createElement('div');
+            tempDiv.style.position = 'absolute';
+            tempDiv.style.left = '-9999px';
+            document.body.appendChild(tempDiv);
+            
+            const qrComponent = new (QRCode as any)({ value: qrCode, size: qrSize, level: 'H', renderAs: 'canvas' });
+            const dataUrl = qrComponent.toDataURL('image/png');
+            
+            const img = new Image();
+            await new Promise(resolve => {
+                img.onload = resolve;
+                img.src = dataUrl;
+            });
+            
+            ctx.drawImage(img, padding, padding);
+
+            document.body.removeChild(tempDiv);
+
+            // Draw the text
+            ctx.fillStyle = 'black';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Member: ${memberId}`, canvas.width / 2, qrSize + padding + 25);
+            ctx.font = '12px sans-serif';
+            ctx.fillText(`Code: ${qrCode}`, canvas.width / 2, qrSize + padding + 45);
+
+            // Trigger download
+            const link = document.createElement('a');
+            link.download = `${memberId}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Show progress toast
+            if ((i + 1) % 50 === 0 || i === codes.length - 1) {
+                toast({
+                    title: 'Download in Progress',
+                    description: `Downloaded ${i + 1} of ${codes.length} codes.`,
+                });
             }
+
+            // Wait a bit before the next download
+            await new Promise(resolve => setTimeout(resolve, downloadDelay));
         }
-
-
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
-        saveAs(zipBlob, 'all-qr-codes.zip');
         
         toast({
-            title: 'Download Ready',
-            description: 'The zip file has been created and is downloading.',
+            title: 'Download Complete',
+            description: 'All QR codes have been downloaded.',
         });
 
     } catch (error) {
-        console.error("Failed to generate zip file", error);
+        console.error("Failed to generate or download files", error);
         toast({
             variant: 'destructive',
             title: 'Download Failed',
-            description: 'Could not generate the zip file.',
+            description: 'An error occurred during the download process.',
         });
     } finally {
         setIsDownloading(false);
     }
   };
+
 
   return (
     <Card className="w-full max-w-4xl mx-auto shadow-lg">
@@ -113,14 +161,14 @@ export function PreGeneratedCodes() {
           Pre-generated Member QR Codes
         </CardTitle>
         <CardDescription className="flex justify-between items-center">
-          A list of persistent QR codes for event passes. These codes will remain valid for the duration of the server session.
+          A list of persistent QR codes for event passes. These codes will remain valid.
           <Button onClick={handleDownloadAll} disabled={isLoading || isDownloading}>
             {isDownloading ? (
                 <Loader className="mr-2 h-4 w-4 animate-spin" />
             ) : (
                 <Download className="mr-2 h-4 w-4" />
             )}
-            Download All
+            Download All (JPGs)
           </Button>
         </CardDescription>
       </CardHeader>
