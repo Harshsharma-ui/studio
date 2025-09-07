@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader, QrCode, UserPlus, RefreshCcw } from 'lucide-react';
+import { Loader, QrCode, UserPlus, RefreshCcw, Lock, Key } from 'lucide-react';
 import QRCode from 'qrcode.react';
 
 import { Button } from '@/components/ui/button';
@@ -28,9 +28,18 @@ const formSchema = z.object({
   memberId: z.string().min(2, 'Member ID must be at least 2 characters.').max(50),
 });
 
+const passwordSchema = z.object({
+    password: z.string().min(1, 'Password is required.'),
+});
+
 type FormValues = z.infer<typeof formSchema>;
+type PasswordFormValues = z.infer<typeof passwordSchema>;
+
+const ADMIN_PASSWORD = 'varadjade';
 
 export function AdminQrGenerator() {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isResetting, startResetTransition] = useTransition();
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
@@ -44,6 +53,22 @@ export function AdminQrGenerator() {
       memberId: '',
     },
   });
+
+  const passwordForm = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+        password: '',
+    },
+  });
+
+  const handlePasswordSubmit = (values: PasswordFormValues) => {
+    if (values.password === ADMIN_PASSWORD) {
+        setIsUnlocked(true);
+        setPasswordError(null);
+    } else {
+        setPasswordError('Incorrect password. Please try again.');
+    }
+  };
 
   const onSubmit = (values: FormValues) => {
     setGeneratedCode(null);
@@ -80,6 +105,51 @@ export function AdminQrGenerator() {
             });
         }
     });
+  }
+
+  if (!isUnlocked) {
+    return (
+        <Card className="w-full max-w-md mx-auto shadow-lg">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Lock className="text-primary" />
+                    Admin Access
+                </CardTitle>
+                <CardDescription>
+                    Please enter the password to access the admin panel.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Form {...passwordForm}>
+                    <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-6">
+                        <FormField
+                            control={passwordForm.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Password</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" placeholder="Enter admin password" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Button type="submit" className="w-full">
+                           <Key className="mr-2 h-4 w-4" />
+                           Unlock
+                        </Button>
+                    </form>
+                </Form>
+                 {passwordError && (
+                    <Alert className="mt-6" variant="destructive">
+                        <AlertTitle>Access Denied</AlertTitle>
+                        <AlertDescription>{passwordError}</AlertDescription>
+                    </Alert>
+                )}
+            </CardContent>
+        </Card>
+    )
   }
 
   return (
