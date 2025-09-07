@@ -10,7 +10,6 @@ import { getPreGeneratedCodesAction } from '@/app/actions';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
-import ReactDOM from 'react-dom';
 
 interface GeneratedCode {
   memberId: string;
@@ -65,62 +64,51 @@ export function PreGeneratedCodes() {
     const downloadDelay = 100; // ms between each download to avoid browser blocking
 
     try {
+        const qrCanvases = document.querySelectorAll('.qr-code-canvas');
+        const canvasMap = new Map<string, HTMLCanvasElement>();
+        qrCanvases.forEach(canvas => {
+            const qrCanvas = canvas as HTMLCanvasElement;
+            const memberId = qrCanvas.getAttribute('data-member-id');
+            if (memberId) {
+                canvasMap.set(memberId, qrCanvas);
+            }
+        });
+
+
         for (let i = 0; i < codes.length; i++) {
             const { memberId, qrCode } = codes[i];
             
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            const finalCanvas = document.createElement('canvas');
+            const ctx = finalCanvas.getContext('2d');
             if (!ctx) continue;
 
             const qrSize = 256;
             const padding = 20;
-            const textHeight = 60; // Increased height for two lines of text
+            const textHeight = 60;
             
-            canvas.width = qrSize + padding * 2;
-            canvas.height = qrSize + padding * 2 + textHeight;
+            finalCanvas.width = qrSize + padding * 2;
+            finalCanvas.height = qrSize + padding * 2 + textHeight;
             
             ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
 
-            // Render QR code to a temporary canvas to get the data URL
-            const tempDiv = document.createElement('div');
-            tempDiv.style.position = 'absolute';
-            tempDiv.style.left = '-9999px';
-            document.body.appendChild(tempDiv);
-            
-            await new Promise<void>((resolve) => {
-                ReactDOM.render(
-                    <QRCode value={qrCode} size={qrSize} level="H" renderAs="canvas" />, 
-                    tempDiv, 
-                    async () => {
-                        const renderedCanvas = tempDiv.querySelector('canvas');
-                        if (renderedCanvas) {
-                             const dataUrl = renderedCanvas.toDataURL('image/png');
-                             const img = new Image();
-                             await new Promise(resolveImg => {
-                                 img.onload = resolveImg;
-                                 img.src = dataUrl;
-                             });
-                             ctx.drawImage(img, padding, padding);
-                        }
-                        resolve();
-                    }
-                );
-            });
-            
-            ReactDOM.unmountComponentAtNode(tempDiv);
-            document.body.removeChild(tempDiv);
+            const qrCanvas = canvasMap.get(memberId);
+
+            if (qrCanvas) {
+                // Scale the 128x128 canvas to 256x256 for better quality
+                ctx.drawImage(qrCanvas, padding, padding, qrSize, qrSize);
+            }
             
             ctx.fillStyle = 'black';
             ctx.font = '16px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`Member: ${memberId}`, canvas.width / 2, qrSize + padding + 25);
+            ctx.fillText(`Member: ${memberId}`, finalCanvas.width / 2, qrSize + padding + 25);
             ctx.font = '12px sans-serif';
-            ctx.fillText(`Code: ${qrCode}`, canvas.width / 2, qrSize + padding + 45);
+            ctx.fillText(`Code: ${qrCode}`, finalCanvas.width / 2, qrSize + padding + 45);
 
             const link = document.createElement('a');
             link.download = `${memberId}.jpg`;
-            link.href = canvas.toDataURL('image/jpeg');
+            link.href = finalCanvas.toDataURL('image/jpeg');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -184,7 +172,7 @@ export function PreGeneratedCodes() {
                 {codes.map(({ memberId, qrCode }) => (
                     <div key={memberId} className="flex flex-col items-center gap-4 p-4 border rounded-lg bg-card shadow-sm">
                         <div className="bg-white p-2 rounded-lg">
-                            <QRCode value={qrCode} size={128} level="H" renderAs="canvas" className="qr-code-canvas" />
+                            <QRCode value={qrCode} size={128} level="H" renderAs="canvas" className="qr-code-canvas" data-member-id={memberId} />
                         </div>
                         <div className="text-center">
                             <p className="font-semibold flex items-center gap-2"><User className="text-muted-foreground"/> {memberId}</p>
