@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { Loader, QrCode, User, Download } from 'lucide-react';
 import QRCode from 'qrcode.react';
 import JSZip from 'jszip';
@@ -20,29 +20,46 @@ interface GeneratedCode {
 }
 
 const PRE_DEFINED_MEMBERS = Array.from({ length: 5000 }, (_, i) => `member-${i + 1}`);
+const BATCH_SIZE = 100;
 
 export function PreGeneratedCodes() {
   const [codes, setCodes] = useState<GeneratedCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
+  const [isFetching, startFetchingTransition] = useTransition();
+
+  const fetchCodesInBatches = async () => {
+    setIsLoading(true);
+    let allCodes: GeneratedCode[] = [];
+    for (let i = 0; i < PRE_DEFINED_MEMBERS.length; i += BATCH_SIZE) {
+      const batch = PRE_DEFINED_MEMBERS.slice(i, i + BATCH_SIZE);
+      const response = await getPreGeneratedCodesAction(batch);
+      allCodes = [...allCodes, ...response];
+      // Update state incrementally to show progress if needed, or just wait till the end.
+      // For now, we'll update at the end.
+    }
+    setCodes(allCodes);
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    const fetchCodes = async () => {
-      try {
-        setIsLoading(true);
-        const response = await getPreGeneratedCodesAction(PRE_DEFINED_MEMBERS);
-        setCodes(response);
-      } catch (error) {
-        console.error("Failed to fetch pre-generated codes", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchCodes();
+    startFetchingTransition(() => {
+        fetchCodesInBatches();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDownloadAll = async () => {
+    if (isLoading) {
+        toast({
+            variant: 'destructive',
+            title: 'Please Wait',
+            description: 'Codes are still being generated. Please wait until loading is complete.',
+        });
+        return;
+    }
+
     setIsDownloading(true);
     toast({
         title: 'Preparing Download',
@@ -51,16 +68,22 @@ export function PreGeneratedCodes() {
 
     try {
         const zip = new JSZip();
-        const qrCodeElements = document.querySelectorAll('.qr-code-canvas');
+        
+        // This process can be slow for 5000 codes, let's do it in chunks.
+        for (let i = 0; i < codes.length; i++) {
+            const { memberId, qrCode } = codes[i];
+            const canvas = document.createElement('canvas');
+            const qrCodeInstance = new (QRCode as any)({ value: qrCode, size: 256, level: 'H' });
+            const dataUrl = qrCodeInstance.toDataURL('image/png');
+            const pngData = dataUrl.split(',')[1];
+            zip.file(`${memberId}.png`, pngData, { base64: true });
 
-        qrCodeElements.forEach((canvasEl, index) => {
-            const memberId = codes[index].memberId;
-            if (canvasEl instanceof HTMLCanvasElement) {
-                const pngUrl = canvasEl.toDataURL('image/png');
-                const pngData = pngUrl.split(',')[1];
-                zip.file(`${memberId}.png`, pngData, { base64: true });
+            // To avoid freezing the browser, we can yield to the main thread periodically.
+            if (i % 100 === 0) {
+                 await new Promise(resolve => setTimeout(resolve, 0));
             }
-        });
+        }
+
 
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         saveAs(zipBlob, 'all-qr-codes.zip');
@@ -102,7 +125,7 @@ export function PreGeneratedCodes() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {isLoading || isFetching ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground">
             <Loader className="mr-2 h-5 w-5 animate-spin" />
             <span>Generating codes... This may take a moment for 5000 codes.</span>
