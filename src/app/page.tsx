@@ -1,7 +1,6 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QrScanner } from "@/components/qr-scanner";
-import { AiSuggester } from "@/components/ai-suggester";
 import { AdminQrGenerator } from "@/components/admin-qr-generator";
 import { Icons } from "@/components/icons";
 import { QrCode, ShieldCheck, Users } from "lucide-react";
@@ -24,7 +23,7 @@ export default function Home() {
       </header>
       
       <Tabs defaultValue="scanner" className="w-full max-w-4xl">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="admin">
             <ShieldCheck className="mr-2 h-4 w-4" />
             Admin
@@ -38,7 +37,6 @@ export default function Home() {
               <QrCode className="mr-2 h-4 w-4" />
               Pre-generated
           </TabsTrigger>
-          <TabsTrigger value="ai-suggester">AI Event Suggester</TabsTrigger>
         </TabsList>
         <TabsContent value="admin" className="mt-6">
           <div className="flex justify-center">
@@ -59,11 +57,6 @@ export default function Home() {
             <div className="flex justify-center">
                 <PreGeneratedCodes />
             </div>
-        </TabsContent>
-        <TabsContent value="ai-suggester" className="mt-6">
-          <div className="flex justify-center">
-            <AiSuggester />
-          </div>
         </TabsContent>
       </Tabs>
 
