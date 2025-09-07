@@ -10,6 +10,7 @@ import { getPreGeneratedCodesAction } from '@/app/actions';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
+import ReactDOM from 'react-dom';
 
 interface GeneratedCode {
   memberId: string;
@@ -67,35 +68,42 @@ export function PreGeneratedCodes() {
         for (let i = 0; i < codes.length; i++) {
             const { memberId, qrCode } = codes[i];
             
-            // Create a canvas to combine QR code and text
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             if (!ctx) continue;
 
             const qrSize = 256;
             const padding = 20;
-            const textHeight = 40;
+            const textHeight = 60; // Increased height for two lines of text
             
             canvas.width = qrSize + padding * 2;
             canvas.height = qrSize + padding * 2 + textHeight;
             
-            // White background
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw the QR code
-            const tempCanvas = document.createElement('canvas');
-            const qrNode = <QRCode value={qrCode} size={qrSize} level="H" />;
-            const qrCanvas: HTMLCanvasElement | null = document.querySelector('.qr-code-canvas');
-
-            // We need a rendered QR code to draw it. A bit of a hack: render it, grab it, draw it.
+            // Render QR code to a temporary canvas to get the data URL
             const tempDiv = document.createElement('div');
             tempDiv.style.position = 'absolute';
             tempDiv.style.left = '-9999px';
             document.body.appendChild(tempDiv);
             
-            const qrComponent = new (QRCode as any)({ value: qrCode, size: qrSize, level: 'H', renderAs: 'canvas' });
-            const dataUrl = qrComponent.toDataURL('image/png');
+            const qrCanvas = document.createElement('canvas');
+            ReactDOM.render(<QRCode value={qrCode} size={qrSize} level="H" renderAs="canvas" />, tempDiv, () => {
+                const renderedCanvas = tempDiv.querySelector('canvas');
+                if (renderedCanvas) {
+                    qrCanvas.width = renderedCanvas.width;
+                    qrCanvas.height = renderedCanvas.height;
+                    const qrCtx = qrCanvas.getContext('2d');
+                    if (qrCtx) {
+                        qrCtx.drawImage(renderedCanvas, 0, 0);
+                    }
+                }
+            });
+
+            const dataUrl = qrCanvas.toDataURL('image/png');
+            ReactDOM.unmountComponentAtNode(tempDiv);
+            document.body.removeChild(tempDiv);
             
             const img = new Image();
             await new Promise(resolve => {
@@ -105,9 +113,6 @@ export function PreGeneratedCodes() {
             
             ctx.drawImage(img, padding, padding);
 
-            document.body.removeChild(tempDiv);
-
-            // Draw the text
             ctx.fillStyle = 'black';
             ctx.font = '16px sans-serif';
             ctx.textAlign = 'center';
@@ -115,7 +120,6 @@ export function PreGeneratedCodes() {
             ctx.font = '12px sans-serif';
             ctx.fillText(`Code: ${qrCode}`, canvas.width / 2, qrSize + padding + 45);
 
-            // Trigger download
             const link = document.createElement('a');
             link.download = `${memberId}.jpg`;
             link.href = canvas.toDataURL('image/jpeg');
@@ -123,7 +127,6 @@ export function PreGeneratedCodes() {
             link.click();
             document.body.removeChild(link);
 
-            // Show progress toast
             if ((i + 1) % 50 === 0 || i === codes.length - 1) {
                 toast({
                     title: 'Download in Progress',
@@ -131,7 +134,6 @@ export function PreGeneratedCodes() {
                 });
             }
 
-            // Wait a bit before the next download
             await new Promise(resolve => setTimeout(resolve, downloadDelay));
         }
         
