@@ -1,50 +1,37 @@
 
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect } from 'react';
 import { getCheckedInMembersAction } from '@/app/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { UserCheck, Users, Loader, CheckCircle, RefreshCcw } from 'lucide-react';
+import { Users, Loader, CheckCircle } from 'lucide-react';
 import { Badge } from './ui/badge';
-import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Separator } from './ui/separator';
 
 export function CheckedInList() {
   const [checkedInMembers, setCheckedInMembers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFetching, startFetchingTransition] = useTransition();
   const { toast } = useToast();
 
-  const fetchMembers = async () => {
-    setIsLoading(true);
-    try {
-      const members = await getCheckedInMembersAction();
-      setCheckedInMembers(members.sort());
-    } catch (error) {
-      console.error('Failed to fetch checked-in members:', error);
-      toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to fetch checked-in members.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const handleRefresh = () => {
-    startFetchingTransition(async () => {
-        await fetchMembers();
-        toast({
-            title: 'List Refreshed',
-            description: 'The checked-in list has been updated.',
-        });
-    });
-  }
-
   useEffect(() => {
+    const fetchMembers = async () => {
+      setIsLoading(true);
+      try {
+        const members = await getCheckedInMembersAction();
+        setCheckedInMembers(members.sort());
+      } catch (error) {
+        console.error('Failed to fetch checked-in members:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Failed to fetch checked-in members.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     fetchMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -62,16 +49,7 @@ export function CheckedInList() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex justify-end mb-4">
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
-                {isFetching ? <Loader className="animate-spin" /> : <RefreshCcw />}
-                Refresh List
-            </Button>
-        </div>
-
-        <Separator className="mb-4" />
-        
-        {(isLoading && !isFetching) ? (
+        {isLoading ? (
           <div className="flex items-center justify-center h-48 text-muted-foreground">
             <Loader className="mr-2 h-5 w-5 animate-spin" />
             <span>Loading members...</span>
