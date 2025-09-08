@@ -24,6 +24,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+        config.watchOptions = {
+            ...config.watchOptions,
+            ignored: [
+                ...((config.watchOptions.ignored as string[]) || []),
+                '**/checked-in-data.json',
+            ],
+        };
+    }
+    return config;
+  }
 };
 
 export default nextConfig;
