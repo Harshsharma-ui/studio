@@ -5,17 +5,16 @@ import { useState, useEffect, useTransition } from 'react';
 import { getCheckedInMembersAction } from '@/app/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Users, Loader, CheckCircle, RefreshCw } from 'lucide-react';
+import { Users, Loader, CheckCircle } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from './ui/button';
 
 export function CheckedInList() {
   const [checkedInMembers, setCheckedInMembers] = useState<string[]>([]);
   const [isLoading, startLoadingTransition] = useTransition();
   const { toast } = useToast();
 
-  const fetchMembers = async () => {
+  const fetchMembers = () => {
     startLoadingTransition(async () => {
       try {
         const members = await getCheckedInMembersAction();
@@ -32,7 +31,13 @@ export function CheckedInList() {
   };
 
   useEffect(() => {
-    fetchMembers();
+    fetchMembers(); // Fetch immediately on mount
+
+    const interval = setInterval(() => {
+        fetchMembers();
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(interval); // Cleanup interval on unmount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -49,16 +54,6 @@ export function CheckedInList() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-4">
-             <Button onClick={fetchMembers} disabled={isLoading} className="w-full">
-                {isLoading ? (
-                    <Loader className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                )}
-                Refresh List
-            </Button>
-        </div>
         {isLoading && checkedInMembers.length === 0 ? (
           <div className="flex items-center justify-center h-48 text-muted-foreground">
             <Loader className="mr-2 h-5 w-5 animate-spin" />
