@@ -11,35 +11,34 @@ import { useToast } from '@/hooks/use-toast';
 
 export function CheckedInList() {
   const [checkedInMembers, setCheckedInMembers] = useState<string[]>([]);
-  const [isLoading, startLoadingTransition] = useTransition();
+  const [isFetching, startFetchingTransition] = useTransition();
   const { toast } = useToast();
 
-  const fetchMembers = () => {
-    startLoadingTransition(async () => {
-      try {
-        const members = await getCheckedInMembersAction();
-        setCheckedInMembers(members.sort());
-      } catch (error) {
-        console.error('Failed to fetch checked-in members:', error);
-        toast({
+  useEffect(() => {
+    const fetchMembers = () => {
+      startFetchingTransition(async () => {
+        try {
+          const members = await getCheckedInMembersAction();
+          setCheckedInMembers(members.sort());
+        } catch (error) {
+          console.error('Failed to fetch checked-in members:', error);
+          toast({
             variant: 'destructive',
             title: 'Error',
             description: 'Failed to fetch checked-in members.',
-        });
-      }
-    });
-  };
+          });
+        }
+      });
+    };
 
-  useEffect(() => {
     fetchMembers(); // Fetch immediately on mount
 
     const interval = setInterval(() => {
-        fetchMembers();
+      fetchMembers();
     }, 5000); // Refresh every 5 seconds
 
     return () => clearInterval(interval); // Cleanup interval on unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [toast]);
 
   return (
     <Card className="w-full max-w-md mx-auto shadow-lg">
@@ -54,7 +53,7 @@ export function CheckedInList() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading && checkedInMembers.length === 0 ? (
+        {isFetching && checkedInMembers.length === 0 ? (
           <div className="flex items-center justify-center h-48 text-muted-foreground">
             <Loader className="mr-2 h-5 w-5 animate-spin" />
             <span>Loading members...</span>

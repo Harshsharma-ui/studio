@@ -64,6 +64,15 @@ export function PreGeneratedCodes() {
         return;
     }
 
+    if (typeof document === 'undefined') {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Download can only be initiated from the browser.',
+        });
+        return;
+    }
+
     setIsDownloading(true);
     toast({
         title: 'Starting Download',
