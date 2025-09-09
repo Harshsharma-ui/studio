@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useState, useTransition, useEffect, useRef } from 'react';
+import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { CheckCircle, QrCode, XCircle, Loader, Camera, CameraOff, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { verifyQRCodeAction, checkInMemberByIdAction } from '@/app/actions';
+import { verifyQRCodeAction } from '@/app/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +45,35 @@ export function QrScanner() {
     },
   });
 
+  const handleScan = useCallback((qrCode: string) => {
+    if (isPending) return;
+    
+    // Stop scanning
+    if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+    }
+
+    setStatus('scanning');
+    setMessage(`Verifying code...`);
+    
+    startTransition(async () => {
+      const result = await verifyQRCodeAction(qrCode);
+      if (result.success) {
+        setStatus('success');
+      } else {
+        setStatus('error');
+      }
+      setMessage(result.message);
+      
+      setTimeout(() => {
+          if (status !== 'no-camera') {
+            setStatus('idle');
+            setMessage('');
+          }
+      }, 3000);
+    });
+  }, [isPending, status]);
+
   useEffect(() => {
     const getCameraPermission = async () => {
       try {
@@ -78,34 +107,34 @@ export function QrScanner() {
         }
     }
   }, [toast]);
-
-  const tick = () => {
-    if (isPending || status !== 'idle' || isManualCheckinPending) return;
-
-    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-      if (!canvasRef.current) return;
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      const ctx = canvas.getContext('2d');
-
-      if (ctx) {
-        canvas.height = video.videoHeight;
-        canvas.width = video.videoWidth;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert',
-        });
-
-        if (code && code.data) {
-          handleScan(code.data);
-        }
-      }
-    }
-    requestRef.current = requestAnimationFrame(tick);
-  };
   
   useEffect(() => {
+    const tick = () => {
+      if (isPending || status !== 'idle' || isManualCheckinPending) return;
+  
+      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+        if (!canvasRef.current) return;
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        const ctx = canvas.getContext('2d');
+  
+        if (ctx) {
+          canvas.height = video.videoHeight;
+          canvas.width = video.videoWidth;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
+  
+          if (code && code.data) {
+            handleScan(code.data);
+          }
+        }
+      }
+      requestRef.current = requestAnimationFrame(tick);
+    };
+
     if (hasCameraPermission && status === 'idle' && !isPending && !isManualCheckinPending) {
         requestRef.current = requestAnimationFrame(tick);
     }
@@ -114,37 +143,7 @@ export function QrScanner() {
             cancelAnimationFrame(requestRef.current);
         }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasCameraPermission, status, isPending, isManualCheckinPending]);
-
-  const handleScan = (qrCode: string) => {
-    if (isPending) return;
-    
-    // Stop scanning
-    if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-    }
-
-    setStatus('scanning');
-    setMessage(`Verifying code...`);
-    
-    startTransition(async () => {
-      const result = await verifyQRCodeAction(qrCode);
-      if (result.success) {
-        setStatus('success');
-      } else {
-        setStatus('error');
-      }
-      setMessage(result.message);
-      
-      setTimeout(() => {
-          if (status !== 'no-camera') {
-            setStatus('idle');
-            setMessage('');
-          }
-      }, 3000);
-    });
-  };
+  }, [hasCameraPermission, status, isPending, isManualCheckinPending, handleScan]);
 
   const onManualSubmit = (values: FormValues) => {
     startManualCheckinTransition(async () => {
