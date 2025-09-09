@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useCallback } from 'react';
 import { Loader, QrCode, User, Download } from 'lucide-react';
 import QRCode from 'qrcode.react';
 
@@ -26,24 +26,33 @@ export function PreGeneratedCodes() {
   const { toast } = useToast();
   const [isFetching, startFetchingTransition] = useTransition();
 
-  const fetchCodesInBatches = async () => {
+  const fetchCodesInBatches = useCallback(async () => {
     setIsLoading(true);
     let allCodes: GeneratedCode[] = [];
-    for (let i = 0; i < PRE_DEFINED_MEMBERS.length; i += BATCH_SIZE) {
-      const batch = PRE_DEFINED_MEMBERS.slice(i, i + BATCH_SIZE);
-      const response = await getPreGeneratedCodesAction(batch);
-      allCodes = [...allCodes, ...response];
+    try {
+      for (let i = 0; i < PRE_DEFINED_MEMBERS.length; i += BATCH_SIZE) {
+        const batch = PRE_DEFINED_MEMBERS.slice(i, i + BATCH_SIZE);
+        const response = await getPreGeneratedCodesAction(batch);
+        allCodes = [...allCodes, ...response];
+      }
+      setCodes(allCodes);
+    } catch (error) {
+      console.error("Failed to fetch pre-generated codes", error);
+      toast({
+        variant: 'destructive',
+        title: 'Error Fetching Codes',
+        description: 'Could not load the list of pre-generated QR codes.',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setCodes(allCodes);
-    setIsLoading(false);
-  };
+  }, [toast]);
 
   useEffect(() => {
     startFetchingTransition(() => {
         fetchCodesInBatches();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchCodesInBatches]);
 
   const handleDownloadAll = async () => {
     if (isLoading) {
