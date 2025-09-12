@@ -77,6 +77,9 @@ export function QrScanner() {
   useEffect(() => {
     const getCameraPermission = async () => {
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Camera not supported on this browser.');
+        }
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         setHasCameraPermission(true);
         if (videoRef.current) {
@@ -202,12 +205,22 @@ export function QrScanner() {
             </div>
 
             {/* Scanning overlay */}
-            {!isPending && status === 'idle' && (
+            {hasCameraPermission && !isPending && status === 'idle' && (
                 <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-3/4 h-3/4 border-4 border-dashed border-white/50 rounded-lg animate-pulse"/>
                 </div>
             )}
         </div>
+
+        {hasCameraPermission === false && (
+            <Alert variant="destructive">
+                <CameraOff className="h-4 w-4" />
+                <AlertTitle>Camera Access Required</AlertTitle>
+                <AlertDescription>
+                    Please allow camera access in your browser to use the scanner. You can still use manual check-in below.
+                </AlertDescription>
+            </Alert>
+        )}
 
         {(message && (status === 'success' || status === 'error')) && (
           <Alert variant={status === 'success' ? 'default' : 'destructive'} className={cn('text-center', status === 'success' && 'border-green-500/50 bg-green-50 dark:bg-green-900/10')}>
@@ -219,7 +232,7 @@ export function QrScanner() {
           </Alert>
         )}
         
-        {status === 'no-camera' && (
+        {status === 'no-camera' && hasCameraPermission === null && (
              <Alert variant="destructive">
                 <CameraOff className="h-4 w-4" />
                 <AlertTitle>Camera Not Available</AlertTitle>
