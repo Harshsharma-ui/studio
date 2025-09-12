@@ -15,7 +15,7 @@ declare global {
 let checkedInMembers: Set<string>;
 
 // Function to read data from the file
-function loadStore() {
+function loadStore(): Set<string> {
     try {
         if (fs.existsSync(dataFilePath)) {
             const data = fs.readFileSync(dataFilePath, 'utf-8');
@@ -33,7 +33,7 @@ function loadStore() {
 function saveStore(store: Set<string>) {
     try {
         const dataToSave = {
-            checkedInMembers: Array.from(store),
+            checkedInMembers: Array.from(store).sort(),
         };
         fs.writeFileSync(dataFilePath, JSON.stringify(dataToSave, null, 2));
     } catch (error) {
@@ -42,13 +42,20 @@ function saveStore(store: Set<string>) {
 }
 
 function initializeStore() {
-  if (global.checkedInMembers) {
-    checkedInMembers = global.checkedInMembers;
+  // In a development environment, Next.js can clear the require cache on every request,
+  // which would cause us to re-initialize and potentially lose in-memory data.
+  // Storing the Set in a global variable is a workaround for this hot-reloading behavior.
+  if (process.env.NODE_ENV === 'production') {
+    if (!checkedInMembers) {
+        checkedInMembers = loadStore();
+    }
   } else {
-    console.log('Initializing check-in store from file...');
-    checkedInMembers = loadStore();
-    global.checkedInMembers = checkedInMembers;
-    console.log(`Check-in store initialized with ${checkedInMembers.size} members.`);
+    if (!global.checkedInMembers) {
+        console.log('Initializing check-in store from file for development...');
+        global.checkedInMembers = loadStore();
+        console.log(`Check-in store initialized with ${global.checkedInMembers.size} members.`);
+    }
+    checkedInMembers = global.checkedInMembers;
   }
 }
 
@@ -88,18 +95,15 @@ export async function verifyAndInvalidateQRCode(code: string): Promise<{ success
   // The list of possible members includes pre-defined ones and any that have ever been checked in (ad-hoc)
   const isKnownMember = allPossibleMemberIds.includes(memberIdToCheck) || checkedInMembers.has(memberIdToCheck);
 
-  if (isKnownMember) {
-    if (checkedInMembers.has(memberIdToCheck)) {
-      return { success: false, message: `Member ${memberIdToCheck} has already been checked in.` };
-    }
-
-    checkedInMembers.add(memberIdToCheck);
-    saveStore(checkedInMembers); // Persist the new check-in
-    
-    return { success: true, message: `Check-in for ${memberIdToCheck} successful. Welcome!` };
+  if (checkedInMembers.has(memberIdToCheck)) {
+    return { success: false, message: `Member ${memberIdToCheck} has already been checked in.` };
   }
 
-  return { success: false, message: 'Invalid QR code or Member ID. Please try another.' };
+  // Allow check-in for known members or any manually entered ID
+  checkedInMembers.add(memberIdToCheck);
+  saveStore(checkedInMembers); // Persist the new check-in
+  
+  return { success: true, message: `Check-in for ${memberIdToCheck} successful. Welcome!` };
 }
 
 export async function checkInMemberById(memberId: string): Promise<{ success: boolean; message: string }> {
@@ -118,7 +122,8 @@ export async function checkInMemberById(memberId: string): Promise<{ success: bo
 }
 
 export async function getCheckedInMembers(): Promise<string[]> {
-    return Array.from(checkedInMembers);
+    // Return a sorted array for consistent display
+    return Array.from(checkedInMembers).sort();
 }
 
 export async function getPreGeneratedCodes(memberIds: string[]): Promise<Array<{memberId: string, qrCode: string}>> {
